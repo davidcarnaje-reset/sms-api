@@ -3,10 +3,9 @@ error_reporting(0);
 ob_start();
 
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS"); // 1. Dinagdag ang OPTIONS dito
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// 2. THE GUARD: Harangan ang CORS Preflight (Ghost Request)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
     exit();
@@ -23,101 +22,86 @@ include 'config.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-// 3. EXTRA SECURITY: Wag i-save kapag walang laman ang email o username
-if (empty($data['username']) || empty($data['email'])) {
+if (empty($data['email']) || empty($data['username'])) {
     ob_clean();
-    echo json_encode(["success" => false, "message" => "Empty payload. Request blocked."]);
+    echo json_encode(["success" => false, "message" => "Missing required fields."]);
     exit();
 }
 
-// 4. Prepare detailed User Data
 $first_name = $conn->real_escape_string($data['first_name']);
 $middle_name = $conn->real_escape_string($data['middle_name']);
 $last_name = $conn->real_escape_string($data['last_name']);
-$full_name = "$first_name $middle_name $last_name"; // Consolidated
+$full_name = $first_name . " " . ($middle_name ? $middle_name . " " : "") . $last_name;
 $email = $conn->real_escape_string($data['email']);
 $username = $conn->real_escape_string($data['username']);
-$role = $conn->real_escape_string($data['role']); // e.g., registrar, cashier
-$birthday = $conn->real_escape_string($data['birthday']);
-$phone = $conn->real_escape_string($data['phone_number']);
-
-// 5. Generate Activation Token
+$role = $conn->real_escape_string($data['role']);
 $token = bin2hex(random_bytes(32));
 
-// 6. Branding Info
+// Branding Fetch
 $branding_res = $conn->query("SELECT * FROM school_settings WHERE id=1");
 $branding = $branding_res->fetch_assoc();
 $school_name = $branding['school_name'] ?? "School Portal";
-$school_logo = $branding['school_logo'];
 $theme_color = $branding['theme_color'] ?? "#2563eb";
 
-// 7. Database Insert (Walang password muna, is_verified = 0)
-$sql = "INSERT INTO users (username, first_name, middle_name, last_name, full_name, email, role, birthday, phone_number, verification_token, is_verified) 
-        VALUES ('$username', '$first_name', '$middle_name', '$last_name', '$full_name', '$email', '$role', '$birthday', '$phone', '$token', 0)";
+// Start Transaction
+$conn->begin_transaction();
 
-if ($conn->query($sql)) {
+try {
+    // INSERT TO USERS
+    $sql = "INSERT INTO users (username, first_name, middle_name, last_name, full_name, email, role, verification_token, is_verified) 
+            VALUES ('$username', '$first_name', '$middle_name', '$last_name', '$full_name', '$email', '$role', '$token', 0)";
+
+    $conn->query($sql);
+
+    // MAILER LOGIC (Kapareho ng sa Student)
     $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
-        $mail->SMTPAuth = true;
-        $mail->Username = 'primaschool1@gmail.com';
-        $mail->Password = 'axnokkbahyzscmxf';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
+    $mail->isSMTP();
+    $mail->Host = 'smtp.gmail.com';
+    $mail->SMTPAuth = true;
+    $mail->Username = 'primaschool1@gmail.com';
+    $mail->Password = 'axnokkbahyzscmxf';
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port = 587;
 
-        $mail->setFrom('primaschool1@gmail.com', $school_name);
-        $mail->addAddress($email, $full_name);
-        $mail->isHTML(true);
+    $mail->setFrom('primaschool1@gmail.com', $school_name);
+    $mail->addAddress($email, $full_name);
+    $mail->isHTML(true);
 
-        // Embed Logo
-        $logo_src = "";
-        if (!empty($school_logo)) {
-            $logo_path = 'uploads/' . basename($school_logo);
-            if (file_exists($logo_path)) {
-                $mail->addEmbeddedImage($logo_path, 'school_logo');
-                $logo_src = "cid:school_logo";
-            }
-        }
+    $setup_link = "http://localhost:5173/setup-password?token=$token&email=" . urlencode($email);
 
-        $activation_link = "http://localhost:5173/setup-password?token=$token&email=" . urlencode($email);
-
-        $mail->Subject = "Account Activation - $school_name";
-        $mail->Body = "
-        <div style='background-color: #f4f7f6; padding: 30px; font-family: sans-serif;'>
-            <div style='max-width: 600px; margin: 0 auto; background: #fff; border-radius: 20px; overflow: hidden;'>
-                <div style='background: $theme_color; padding: 40px; text-align: center; color: #fff;'>
-                    " . ($logo_src ? "<img src='$logo_src' style='height: 70px; background: #fff; border-radius: 12px; padding: 5px; margin-bottom: 10px;'>" : "") . "
-                    <h1 style='margin:0;'>Welcome to the Team!</h1>
+    $mail->Subject = "Account Activation - $school_name";
+    $mail->Body = "
+        <div style='font-family: sans-serif; padding: 20px; background: #f4f7f6;'>
+            <div style='max-width: 600px; margin: auto; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05);'>
+                <div style='background: $theme_color; padding: 40px; text-align: center; color: white;'>
+                    <h1 style='margin:0; font-size: 24px;'>Welcome, $first_name!</h1>
+                    <p style='opacity: 0.9;'>Your Staff Account is ready.</p>
                 </div>
                 <div style='padding: 40px;'>
-                    <p style='font-size: 16px; color: #1e293b;'>Hello <strong>$first_name</strong>,</p>
-                    <p style='color: #64748b; line-height: 1.6;'>Ang iyong staff account bilang <b>" . ucfirst($role) . "</b> ay handa na para sa activation. Mangyaring i-click ang button sa ibaba upang i-verify ang iyong email at mag-set ng iyong password.</p>
-                    
-                    <div style='text-align: center; margin: 40px 0;'>
-                        <a href='$activation_link' style='background: $theme_color; color: #fff; padding: 18px 30px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px;'>Activate & Set Password</a>
+                    <p style='color: #4b5563;'>Ang iyong account bilang <b>" . ucfirst($role) . "</b> ay matagumpay na nagawa sa system.</p>
+                    <div style='background: #f9fafb; padding: 25px; border-radius: 16px; border: 1px solid #f1f5f9; margin: 25px 0;'>
+                        <p style='margin:0; font-size: 12px; color: #94a3b8; font-weight: bold; text-transform: uppercase;'>Username</p>
+                        <p style='margin:0; font-size: 18px; color: #1e293b; font-weight: 800;'>$username</p>
+                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 15px 0;'>
+                        <p style='margin:0; font-size: 12px; color: #94a3b8; font-weight: bold; text-transform: uppercase;'>Role</p>
+                        <p style='margin:0; font-size: 16px; color: #1e293b; font-weight: 700;'>" . ucfirst($role) . "</p>
                     </div>
-
-                    <div style='background: #f8fafc; padding: 20px; border-radius: 15px; font-size: 13px; color: #64748b;'>
-                        <p style='margin:0;'><b>Username:</b> $username</p>
-                        <p style='margin:5px 0 0 0;'><b>Role:</b> " . ucfirst($role) . "</p>
+                    <p style='color: #64748b; font-size: 14px;'>Mangyaring i-setup ang iyong password upang ma-access ang staff dashboard at simulan ang iyong trabaho.</p>
+                    <div style='text-align:center; margin: 35px 0;'>
+                        <a href='$setup_link' style='display: inline-block; background: $theme_color; color: white; padding: 18px 35px; text-decoration: none; border-radius: 14px; font-weight: 900; box-shadow: 0 10px 20px -5px $theme_color;'>Activate My Staff Account</a>
                     </div>
-                </div>
-                <div style='padding: 20px; text-align: center; color: #94a3b8; font-size: 11px;'>
-                    &copy; " . date('Y') . " $school_name. This is an official system notification.
                 </div>
             </div>
         </div>";
 
-        $mail->send();
-        ob_clean();
-        echo json_encode(["success" => true, "message" => "Invitation sent to $email!"]);
-    } catch (Exception $e) {
-        ob_clean();
-        echo json_encode(["success" => true, "message" => "User saved, but email failed: {$mail->ErrorInfo}"]);
-    }
-} else {
+    $mail->send();
+    $conn->commit();
     ob_clean();
-    echo json_encode(["success" => false, "message" => "Database Error: " . $conn->error]);
+    echo json_encode(["success" => true, "message" => "Staff added and email sent!"]);
+
+} catch (Exception $e) {
+    $conn->rollback();
+    ob_clean();
+    echo json_encode(["success" => false, "message" => "Error: " . $e->getMessage()]);
 }
 ?>
