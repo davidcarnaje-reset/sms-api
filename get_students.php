@@ -4,8 +4,14 @@ header("Content-Type: application/json; charset=UTF-8");
 
 include 'config.php';
 
-// Kunin ang lahat ng students at i-join sa enrollment para makuha ang grade_level
-$sql = "SELECT s.*, e.grade_level, e.status as enrollment_status 
+// Dinagdagan natin ng e.enrollment_type, e.school_year, e.prev_school, etc.
+$sql = "SELECT s.*, 
+               e.grade_level, 
+               e.enrollment_type, 
+               e.school_year, 
+               e.prev_school,
+               e.payment_plan,
+               e.status as enrollment_status 
         FROM students s 
         LEFT JOIN enrollments e ON s.student_id = e.student_id 
         ORDER BY s.id DESC";
