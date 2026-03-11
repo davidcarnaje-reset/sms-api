@@ -51,7 +51,6 @@ if ($result->num_rows > 0) {
         $branding_res = $conn->query("SELECT * FROM school_settings WHERE id=1");
         $branding = $branding_res->fetch_assoc();
         $school_name = $branding['school_name'] ?? "School Portal";
-        $school_logo = $branding['school_logo'];
         $theme_color = $branding['theme_color'] ?? "#2563eb";
 
         // 6. I-send ang Email gamit ang PHPMailer
@@ -69,25 +68,16 @@ if ($result->num_rows > 0) {
             $mail->addAddress($email, $first_name);
             $mail->isHTML(true);
 
-            // Embed Logo
-            $logo_src = "";
-            if (!empty($school_logo)) {
-                $logo_path = 'uploads/' . basename($school_logo);
-                if (file_exists($logo_path)) {
-                    $mail->addEmbeddedImage($logo_path, 'school_logo');
-                    $logo_src = "cid:school_logo";
-                }
-            }
-
             // ITO ANG LINK PAPUNTA SA RESET PASSWORD PAGE NA GAGAWIN NATIN NEXT
             $reset_link = "http://localhost:5173/reset-password?token=$reset_token&email=" . urlencode($email);
 
             $mail->Subject = "Password Reset Request - $school_name";
+
+            // TINANGGAL NA ANG LOGO SA BODY
             $mail->Body = "
             <div style='background-color: #f4f7f6; padding: 30px; font-family: sans-serif;'>
                 <div style='max-width: 600px; margin: 0 auto; background: #fff; border-radius: 20px; overflow: hidden;'>
                     <div style='background: $theme_color; padding: 40px; text-align: center; color: #fff;'>
-                        " . ($logo_src ? "<img src='$logo_src' style='height: 70px; background: #fff; border-radius: 12px; padding: 5px; margin-bottom: 10px;'>" : "") . "
                         <h1 style='margin:0;'>Password Reset</h1>
                     </div>
                     <div style='padding: 40px;'>
@@ -98,7 +88,7 @@ if ($result->num_rows > 0) {
                             <a href='$reset_link' style='background: $theme_color; color: #fff; padding: 18px 30px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px;'>Reset My Password</a>
                         </div>
 
-                        <p style='color: #ef4444; font-size: 13px;'>Kung hindi ikaw ang nag-request nito, maaari mong i-ignore ang email na ito. Mananatiling ligtas ang iyong account.</p>
+                        <p style='color: #ef4444; font-size: 13px;'>Kung hindi ikaw ang nag-request nito, maaari mong i-ignore ang email na this. Mananatiling ligtas ang iyong account.</p>
                     </div>
                     <div style='padding: 20px; text-align: center; color: #94a3b8; font-size: 11px; background: #f8fafc;'>
                         &copy; " . date('Y') . " $school_name IT Support.
