@@ -11,34 +11,34 @@ if (isset($data['email']) && isset($data['token']) && isset($data['password'])) 
 
     $email = $conn->real_escape_string($data['email']);
     $token = $conn->real_escape_string($data['token']);
-    $raw_password = $data['password'];
+    $hashed_password = password_hash($data['password'], PASSWORD_DEFAULT);
 
-    // 1. PINALITAN: students table dapat, hindi users!
-    $sql = "SELECT id FROM students WHERE email = '$email' AND verification_token = '$token' AND is_verified = 0";
-    $result = $conn->query($sql);
+    // 1. UNA: I-check sa USERS table (Staff/Admin)
+    $check_users = $conn->query("SELECT id FROM users WHERE email = '$email' AND verification_token = '$token' AND is_verified = 0");
 
-    if ($result->num_rows > 0) {
-
-        $hashed_password = password_hash($raw_password, PASSWORD_DEFAULT);
-
-        // 2. PINALITAN: students table din dapat dito!
-        $update_sql = "UPDATE students SET 
-                        password = '$hashed_password', 
-                        is_verified = 1, 
-                        verification_token = NULL 
-                      WHERE email = '$email'";
-
-        if ($conn->query($update_sql)) {
-            echo json_encode(["success" => true, "message" => "Account successfully verified and password saved."]);
-        } else {
-            echo json_encode(["success" => false, "message" => "Database error: " . $conn->error]);
+    if ($check_users->num_rows > 0) {
+        $update = $conn->query("UPDATE users SET password = '$hashed_password', is_verified = 1, verification_token = NULL WHERE email = '$email'");
+        if ($update) {
+            echo json_encode(["success" => true, "message" => "Staff account verified!", "portal" => "staff"]);
+            exit();
         }
-
-    } else {
-        echo json_encode(["success" => false, "message" => "Invalid link or account is already verified."]);
     }
 
+    // 2. PANGALAWA: Kung wala sa users, i-check sa STUDENTS table
+    $check_students = $conn->query("SELECT id FROM students WHERE email = '$email' AND verification_token = '$token' AND is_verified = 0");
+
+    if ($check_students->num_rows > 0) {
+        $update = $conn->query("UPDATE students SET password = '$hashed_password', is_verified = 1, verification_token = NULL WHERE email = '$email'");
+        if ($update) {
+            echo json_encode(["success" => true, "message" => "Student account verified!", "portal" => "student"]);
+            exit();
+        }
+    }
+
+    // 3. KUNG WALA TALAGA SA KAHIT ALING TABLE
+    echo json_encode(["success" => false, "message" => "Invalid link or account is already verified."]);
+
 } else {
-    echo json_encode(["success" => false, "message" => "Incomplete data. Please use the link from your email."]);
+    echo json_encode(["success" => false, "message" => "Incomplete data."]);
 }
 ?>
