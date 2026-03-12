@@ -13,10 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 include 'config.php';
 
-// Tandaan: Gagamit tayo ng $_POST dahil ang React ay nagpapadala ng FormData (para sa image)
+// Check kung may student_id (ito ang unique key natin)
 if (empty($_POST['student_id'])) {
     ob_clean();
-    echo json_encode(["success" => false, "message" => "Student ID is required."]);
+    echo json_encode(["success" => false, "message" => "Student ID is missing."]);
     exit();
 }
 
@@ -25,53 +25,51 @@ $email = $conn->real_escape_string($_POST['email']);
 $contact_no = $conn->real_escape_string($_POST['contact_no']);
 $address = $conn->real_escape_string($_POST['address']);
 
-$profile_image_query = "";
+$image_sql = "";
 
-// 1. HANDLE PROFILE IMAGE UPLOAD (Kung may pinadalang file)
+// 1. IMAGE UPLOAD LOGIC
 if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0) {
     $target_dir = "uploads/profiles/";
     
-    // Siguraduhing existing ang folder
     if (!file_exists($target_dir)) {
         mkdir($target_dir, 0777, true);
     }
 
     $file_ext = pathinfo($_FILES["profile_image"]["name"], PATHINFO_EXTENSION);
-    // Binabago natin ang filename para unique at hindi ma-overwrite (student_id + timestamp)
+    // Pinapangalanan natin base sa student_id + timestamp para iwas cache
     $new_filename = $student_id . "_" . time() . "." . $file_ext;
     $target_file = $target_dir . $new_filename;
 
     if (move_uploaded_file($_FILES["profile_image"]["tmp_name"], $target_file)) {
-        // Idagdag sa SQL query ang pag-update ng profile_image column
-        $profile_image_query = ", profile_image = '$new_filename'";
+        $image_sql = ", profile_image = '$new_filename'";
     }
 }
 
-// 2. TRANSACTION START
+// 2. DATABASE UPDATE
 $conn->begin_transaction();
 
 try {
-    // I-update ang student record. 
-    // Nilagay ko rin ang 'mobile_no' sa update dahil ito ang madalas na label sa DB base sa add_student.php mo
-    $sql_update = "UPDATE students SET 
-                    email = '$email', 
-                    mobile_no = '$contact_no', 
-                    guardian_address = '$address' 
-                    $profile_image_query 
-                   WHERE student_id = '$student_id'";
+    // I-uupdate natin ang mobile_no at address_house (o guardian_address)
+    // base sa fields na ginamit mo sa add student.
+    $sql = "UPDATE students SET 
+                email = '$email', 
+                mobile_no = '$contact_no', 
+                address_house = '$address' 
+                $image_sql 
+            WHERE student_id = '$student_id'";
 
-    if ($conn->query($sql_update)) {
+    if ($conn->query($sql)) {
         $conn->commit();
         ob_clean();
-        echo json_encode(["success" => true, "message" => "Profile updated successfully!"]);
+        echo json_encode(["success" => true, "message" => "Student records updated!"]);
     } else {
-        throw new Exception("Database update failed.");
+        throw new Exception($conn->error);
     }
 
 } catch (Exception $e) {
     $conn->rollback();
     ob_clean();
-    echo json_encode(["success" => false, "message" => "Error: " . $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => "Update Failed: " . $e->getMessage()]);
 }
 
 $conn->close();
