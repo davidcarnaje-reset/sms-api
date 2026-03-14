@@ -13,11 +13,13 @@ $sql = "SELECT s.*,
                e.grade_level, 
                e.enrollment_type, 
                e.school_year, 
+               e.payment_plan, 
                e.status as enrollment_status,
                b.payment_status,
                b.total_amount,
                b.paid_amount,
-               b.balance
+               b.balance,
+               b.last_payment_date -- Idagdag ito para makuha ang date mula sa student_billing table
         FROM students s 
         LEFT JOIN enrollments e ON s.student_id = e.student_id 
         LEFT JOIN student_billing b ON s.student_id = b.student_id
