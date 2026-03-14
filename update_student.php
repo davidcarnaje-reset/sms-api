@@ -14,7 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 include 'config.php';
 
-// Validate student_id
 if (empty($_POST['student_id'])) {
     ob_clean();
     echo json_encode(["success" => false, "message" => "Student ID missing."]);
@@ -23,14 +22,20 @@ if (empty($_POST['student_id'])) {
 
 $student_id = $conn->real_escape_string($_POST['student_id']);
 $email = $conn->real_escape_string($_POST['email']);
-$contact = $conn->real_escape_string($_POST['contact_no']);
-$address = $conn->real_escape_string($_POST['address']);
+// Binago natin ang keys para mag-match sa FormData ng StudentLayout.jsx
+$contact = $conn->real_escape_string($_POST['mobile_no']);
+$address = $conn->real_escape_string($_POST['address_house']);
 
 $image_sql = "";
 
-// Image Upload Logic
 if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0) {
     $target_dir = "uploads/profiles/";
+    
+    // Siguraduhin na nage-exist ang folder
+    if (!file_exists($target_dir)) {
+        mkdir($target_dir, 0777, true);
+    }
+
     $file_ext = pathinfo($_FILES["profile_image"]["name"], PATHINFO_EXTENSION);
     $new_filename = $student_id . "_" . time() . "." . $file_ext;
     $target_file = $target_dir . $new_filename;
@@ -41,7 +46,7 @@ if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0) {
 }
 
 try {
-    // Check your database: Ensure columns are named 'mobile_no' and 'address_house'
+    // Siguraduhin na ang column names dito ay mobile_no at address_house
     $sql = "UPDATE students SET 
                 email = '$email', 
                 mobile_no = '$contact', 
