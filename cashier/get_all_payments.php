@@ -1,20 +1,17 @@
 <?php
 header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Content-Type: application/json; charset=UTF-8");
-
 include_once '../config.php';
 
-// SQL query na may DATE_FORMAT para sa "Hours:Minutes, Day" (e.g., 02:30 PM, Monday)
 $sql = "SELECT 
             payment_id as id, 
             student_id as student, 
             amount_paid as amount, 
             fee_category as type, 
-            payment_method as method, -- DAGDAG ITO
-            transaction_date as date 
+            payment_method as method,
+            DATE_FORMAT(transaction_date, '%b %d, %Y - %h:%i %p') as date 
         FROM payments 
-        ORDER BY transaction_date DESC 
-        LIMIT 10";
+        ORDER BY transaction_date DESC"; // WALANG LIMIT DITO
 
 $result = $conn->query($sql);
 $payments = array();

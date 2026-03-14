@@ -1,7 +1,7 @@
 <?php
-header("Access-Control-Allow-Origin: http://localhost:5173"); // Payagan ang React port
+header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-header("Access-Control-Allow-Methods: POST, OPTIONS"); // Payagan ang POST at OPTIONS
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Credentials: true");
 
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -9,36 +9,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit();
 }
 
-// Gamitin ang existing config.php
 include_once '../config.php'; 
 
-// Dahil ang config.php mo ay mayroon nang headers at $conn variable:
+// Basahin ang JSON data at i-convert sa associative array (true)
+$data = json_decode(file_get_contents("php://input"), true);
 
-// Basahin ang JSON data galing sa React
-$data = json_decode(file_get_contents("php://input"));
+if (!empty($data['studentId']) && !empty($data['amount'])) {
+    $student_id   = $conn->real_escape_string($data['studentId']);
+    $amount       = $conn->real_escape_string($data['amount']);
+    $method       = $conn->real_escape_string($data['method']);
+    $fee_category = $conn->real_escape_string($data['fee_category']); // Tinitiyak na ito ang ginagamit
 
-if(!empty($data->studentId) && !empty($data->amount)) {
-    
-    // Sanitize data (Importante sa mysqli para iwas SQL Injection)
-    $student_id = $conn->real_escape_string($data->studentId);
-    $amount = $conn->real_escape_string($data->amount);
-    $category = $conn->real_escape_string($data->category);
-    $method = $conn->real_escape_string($data->method);
+    $sql = "INSERT INTO payments (student_id, amount_paid, payment_method, fee_category, transaction_date) 
+            VALUES ('$student_id', '$amount', '$method', '$fee_category', NOW())";
 
-    // SQL Query gamit ang $conn mula sa config.php
-    $sql = "INSERT INTO payments (student_id, amount_paid, fee_category, payment_method) 
-            VALUES ('$student_id', '$amount', '$category', '$method')";
-
-    if($conn->query($sql) === TRUE) {
+    if ($conn->query($sql) === TRUE) {
         http_response_code(201);
-        echo json_encode(array("message" => "Payment successfully recorded."));
+        echo json_encode(["message" => "Success", "category_saved" => $fee_category]);
     } else {
         http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $conn->error));
+        echo json_encode(["message" => "Database error: " . $conn->error]);
     }
 } else {
     http_response_code(400);
-    echo json_encode(array("message" => "Incomplete data."));
+    echo json_encode(["message" => "Missing required fields"]);
 }
 
 $conn->close();
