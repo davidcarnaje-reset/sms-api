@@ -16,12 +16,14 @@ $sql = "SELECT s.*,
                e.section,
                e.school_year, 
                e.payment_plan, 
+               e.scholarship_type,
                e.status as enrollment_status,
                b.id as billing_id, 
                b.payment_status as current_payment_status,
                b.total_amount,
                b.paid_amount,
                b.balance,
+               b.last_payment_date,
                -- KUKUNIN LANG NATIN ANG TUITION FEE ITEM AMOUNT --
                (SELECT SUM(amount) FROM student_billing_items 
                 WHERE billing_id = b.id AND item_name LIKE '%Tuition%') as tuition_only_amount
