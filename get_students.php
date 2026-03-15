@@ -4,7 +4,7 @@ header("Content-Type: application/json; charset=UTF-8");
 
 include 'config.php';
 
-// 1. SQL Query para sa main Student Data (Billing at Enrollment)
+// SQL Query na may malinaw na mapping para sa Gatekeeper logic
 $sql = "SELECT s.*, 
                e.grade_level, 
                e.enrollment_type, 
@@ -12,8 +12,8 @@ $sql = "SELECT s.*,
                e.school_year, 
                e.payment_plan, 
                e.status as enrollment_status,
-               b.id as billing_id, -- Kailangan ito para sa mapping ng items
-               b.payment_status,
+               b.id as billing_id, 
+               b.payment_status as current_payment_status, -- Binigyan ng alias para sigurado
                b.total_amount,
                b.paid_amount,
                b.balance,
@@ -32,12 +32,12 @@ $students = [];
 
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
+        // I-map ang 'current_payment_status' para madaling basahin ng React
+        $row['payment_status'] = $row['current_payment_status']; 
         $students[] = $row;
     }
 }
 
-// 2. SQL Query para sa Student Billing Items
-// Kinukuha natin ang item_name at amount base sa billing_id
 $itemSql = "SELECT billing_id, item_name, amount FROM student_billing_items";
 $itemResult = $conn->query($itemSql);
 $billingItems = [];
@@ -48,7 +48,6 @@ if ($itemResult && $itemResult->num_rows > 0) {
     }
 }
 
-// 3. Pagsamahin sa isang JSON response
 echo json_encode([
     "students" => $students,
     "billing_items" => $billingItems
